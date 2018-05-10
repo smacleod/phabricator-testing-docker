@@ -1,0 +1,56 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+version: '2'
+services:
+  # Phabricator Containers
+  phabricator.test:
+    image: nginx:alpine
+    volumes:
+      - ./docker/phabricator/phabricator-nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    volumes_from:
+      - phabricator
+    restart: on-failure
+    depends_on:
+      - phabricator
+      - tinyproxy
+
+  phabricator:
+    build:
+      context: docker/phabricator
+      dockerfile: ./Dockerfile
+    entrypoint: /app/entrypoint.sh
+    command: dev_start
+    volumes:
+      - ./docker/phabricator/hgrc:/etc/mercurial/hgrc
+    environment:
+      - MYSQL_HOST=phabdb
+      - MYSQL_PORT=3306
+      - MYSQL_USER=root
+      - MYSQL_PASS=password
+      - PHABRICATOR_URI=http://phabricator.test/
+      - PHABRICATOR_CDN_URI=http://phabricator.test/
+    restart: on-failure
+    depends_on:
+      - phabdb
+
+  phabdb:
+    image: mysql:5.5
+    volumes:
+      - phabricator-mysql-db:/var/lib/mysql
+      - ./docker/phabricator/mysql:/etc/mysql/conf.d:ro
+    environment:
+      - MYSQL_ROOT_PASSWORD=password
+    restart: on-failure
+
+  tinyproxy:
+    build:
+      context: docker/tinyproxy
+      dockerfile: ./Dockerfile
+    ports:
+      - "1080:1080"
+
+# Volume Containers
+volumes:
+  phabricator-mysql-db:
